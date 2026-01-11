@@ -42,7 +42,7 @@ An intelligent web application that parses resume files and provides personalize
 ### Installation
 
 1. **Clone the repository**
-  git clone https://github.com/pranav-abhyankar/ai-powered-resume-parser.git          
+  git clone https://github.com/prokriti11/ai-powered-resume-parser.git          
   cd ai-powered-resume-parser
 
 3. **Configure your API key**
