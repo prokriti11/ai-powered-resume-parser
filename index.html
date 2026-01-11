@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Resume Parser & Suggestions Generator</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>AI Resume Parser & Suggestions Generator</h1>
+        
+        <div class="upload-section" id="uploadSection">
+            <div class="upload-icon">📄</div>
+            <div class="upload-text">
+                <strong>Drop your resume here</strong><br>
+                or click to browse<br>
+                <small style="color: #666; font-size: 14px;">
+                    📄 TXT files work best | PDF/DOC support is basic<br>
+                    For best results, copy/conevrt your resume text into a .txt file
+                </small>
+            </div>
+            <input type="file" id="fileInput" accept=".pdf,.doc,.docx,.txt">
+            <button class="btn" onclick="document.getElementById('fileInput').click()">
+                Choose File
+            </button>
+        </div>
+
+        <div id="fileInfo" class="file-info" style="display: none;">
+            <strong>Selected File:</strong> <span id="fileName"></span>
+        </div>
+
+        <div style="text-align: center;">
+            <button class="btn" id="parseBtn" onclick="parseResume()" disabled>
+                Parse Resume & Generate Suggestions
+            </button>
+        </div>
+
+        <div class="loading" id="loading">
+            <div class="loading-spinner"></div>
+            <div>Processing your resume with AI...</div>
+        </div>
+
+        <div id="error" class="error" style="display: none;"></div>
+
+        <div class="results-section" id="resultsSection">
+            <div class="results-grid">
+                <div class="result-card">
+                    <h3>📋 Parsed Resume Content</h3>
+                    <div id="parsedContent" class="parsed-content"></div>
+                </div>
+                <div class="result-card">
+                    <h3>💡 AI Suggestions</h3>
+                    <div id="suggestionsContent" class="suggestions-content"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'http://localhost:3000'; 
+        
+        let selectedFile = null;
+
+        const uploadSection = document.getElementById('uploadSection');
+        const fileInput = document.getElementById('fileInput');
+        const parseBtn = document.getElementById('parseBtn');
+        const fileInfo = document.getElementById('fileInfo');
+        const fileName = document.getElementById('fileName');
+
+        uploadSection.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadSection.classList.add('dragover');
+        });
+
+        uploadSection.addEventListener('dragleave', () => {
+            uploadSection.classList.remove('dragover');
+        });
+
+        uploadSection.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadSection.classList.remove('dragover');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                handleFileSelect(files[0]);
+            }
+        });
+
+        uploadSection.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            if (e.target.files.length > 0) {
+                handleFileSelect(e.target.files[0]);
+            }
+        });
+
+        function handleFileSelect(file) {
+            const allowedTypes = ['application/pdf', 'application/msword', 
+                'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 
+                'text/plain'];
+            
+            if (!allowedTypes.includes(file.type)) {
+                showError('Please select a valid file type (PDF, DOC, DOCX, or TXT)');
+                return;
+            }
+
+            selectedFile = file;
+            fileName.textContent = file.name;
+            fileInfo.style.display = 'block';
+            parseBtn.disabled = false;
+            hideError();
+        }
+
+        async function parseResume() {
+            if (!selectedFile) {
+                showError('Please select a file first');
+                return;
+            }
+
+            showLoading();
+            hideError();
+            hideResults();
+
+            try {
+                const fileContent = await readFileContent(selectedFile);
+
+                const response = await fetch(`${API_BASE_URL}/api/parse-resume`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        content: fileContent,
+                        filename: selectedFile.name,
+                        filetype: selectedFile.type
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const result = await response.json();
+                displayResults(result);
+
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Failed to parse resume. Make sure the backend server is running on port 3000.');
+            } finally {
+                hideLoading();
+            }
+        }
+
+        function readFileContent(file) {
+            return new Promise((resolve, reject) => {
+                const reader = new FileReader();
+                reader.onload = (e) => resolve(e.target.result);
+                reader.onerror = (e) => reject(e);
+                
+                if (file.type === 'text/plain') {
+                    reader.readAsText(file);
+                } else {
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function displayResults(result) {
+            document.getElementById('parsedContent').textContent = result.parsedContent || 'No content extracted';
+            document.getElementById('suggestionsContent').innerHTML = formatSuggestions(result.suggestions || 'No suggestions available');
+            document.getElementById('resultsSection').style.display = 'block';
+        }
+
+        function formatSuggestions(suggestions) {
+            return suggestions
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>')
+                .replace(/\n\n/g, '</p><p>')
+                .replace(/\n/g, '<br>')
+                .replace(/^/, '<p>')
+                .replace(/$/, '</p>');
+        }
+
+        function showLoading() {
+            document.getElementById('loading').style.display = 'block';
+        }
+
+        function hideLoading() {
+            document.getElementById('loading').style.display = 'none';
+        }
+
+        function showError(message) {
+            const errorDiv = document.getElementById('error');
+            errorDiv.textContent = message;
+            errorDiv.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error').style.display = 'none';
+        }
+
+        function hideResults() {
+            document.getElementById('resultsSection').style.display = 'none';
+        }
+    </script>
+</body>
+
+</html>
